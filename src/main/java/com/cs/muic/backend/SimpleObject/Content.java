@@ -1,28 +1,15 @@
 package com.cs.muic.backend.SimpleObject;
 
-import jdk.internal.dynalink.linker.LinkerServices;
-import jdk.nashorn.internal.objects.annotations.Getter;
-import jdk.nashorn.internal.objects.annotations.Setter;
-import lombok.Data;
 import org.bson.types.ObjectId;
-import org.springframework.data.annotation.Id;
 
-import java.util.ArrayList;
-import java.util.List;
-
-@Data
-public class Bucket {
+public class Content {
     private ObjectId id;
     private String name;
 
     private int created;
     private int modified;
-    private List<Content> objects;
-
-    public Bucket(String name){
+    public Content(String name){
         this.name = name;
-        this.objects = new ArrayList<>();
-//        this.created = this.id.getTimestamp();
     }
 
     public String getName() {
@@ -57,11 +44,4 @@ public class Bucket {
         this.modified = modified;
     }
 
-    public List<Content> getObjects() {
-        return objects;
-    }
-
-    public void setObjects(List<Content> objects) {
-        this.objects = objects;
-    }
 }

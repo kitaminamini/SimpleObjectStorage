@@ -2,6 +2,7 @@ package com.cs.muic.backend.SimpleObject;
 
 
 import com.mongodb.operation.BatchCursor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,7 +20,10 @@ public class BucketController {
 
     @PostMapping(value = "/{bucketName}", params = "create")
     Bucket newBucket(@PathVariable String bucketName){
-        return repository.save(new Bucket(bucketName));
+        Bucket bucket = new Bucket(bucketName);
+//        bucket.setCreated(bucket.getId().getTimestamp());
+//        bucket.setModified(bucket.getId().getTimestamp());
+        return repository.save(bucket);
     }
 
     @GetMapping("/buckets/{id}")
@@ -32,41 +36,74 @@ public class BucketController {
         return repository.findAll();
     }
 
-    @DeleteMapping("/{bucketname}?delete")
-    void delete(@PathVariable String bucketname, Long id){
-        Bucket B = repository.findById(id).orElseThrow(()-> new BucketNotFoundException(id));
+    @DeleteMapping(value = "/{bucketname}", params = "delete")
+    void delete(@PathVariable String bucketname){
+        Bucket B = repository.findBucketByName(bucketname);
         repository.delete(B);
     }
 
-    @GetMapping("/{bucketname}?list")
-    List<String> getObjects(@PathVariable String bucketname, Long id){
-        Bucket B = repository.findById(id).orElseThrow(() -> new BucketNotFoundException(id));
-        return B.getContents();
+    @GetMapping(value = "/{bucketname}", params="list")
+    Bucket getObjects(@PathVariable String bucketname){
+        Bucket B = repository.findBucketByName(bucketname);
+        return B;
     }
 
-    @PostMapping("/{bucketName}/{objectName}?create")
-    void createObject(@PathVariable String bucketName, @PathVariable String objectName, Long id){
-        Bucket B = repository.findById(id).orElseThrow(() -> new BucketNotFoundException(id));
-        List<String> objects = B.getContents();
-        if (!objects.contains(objectName)){
-            objects.add(objectName);
+    @PostMapping(value = "/{bucketName}/{objectName}", params = "create")
+    void createObject(@PathVariable String bucketName, @PathVariable String objectName){
+        Bucket B = repository.findBucketByName(bucketName);
+        List<Content> objects = B.getObjects();
+
+        if (!contains(objects, objectName)){
+            Content newObj = new Content(objectName);
+            objects.add(newObj);
             //TODO: Add object
 
-            B.setContents(objects);
+            B.setObjects(objects);
         }
+        repository.save(B);
     }
 
-    @PutMapping("/{bucketName}/{objectName}?partNumber=1 Content-Length: {partSize:required} Content-MD5: {partMd5:required}")
-    void UploadAllParts(){}
+    public boolean contains(List<Content> objs, String objectName){
+        if (objs.isEmpty()){ return false; }
+        for (Content obj : objs){
+            if (obj.getName().equals(objectName)){
+                return true;
+            }
+        }
+        return false;
+    }
 
-    @PostMapping("/{bucketName}/{objectName}?complete Content-Length: {totalLength:required} Content-MD5: {eTag:required}")
-    void completeMultiPartUpload(){}
+    @PutMapping(value = "/{bucketName}/{objectName}",params = "partNumber")
+    public ResponseEntity UploadAllParts(@PathVariable("bucketName") String bucketName,
+                                         @PathVariable("objectName") String objectName,
+                                         @RequestParam("partNumber") String partNumber,
+                                         @RequestHeader("Content-Length") String contentLength,
+                                         @RequestHeader("Content-MD5") String contentMD5){
 
-    @DeleteMapping("/{bucketName}/{objectName}?partNumber=1")
-    void deletePart(){}
 
-    @DeleteMapping("/{bucketName}/{objectName}?delete")
-    void deleteObject(){}
+        return null;
+    }
+
+    @PostMapping(value = "/{bucketName}/{objectName}",params = "complete")
+    public ResponseEntity completeMultiPartUpload(@PathVariable("bucketName") String bucketName,
+                                                @PathVariable("objectName") String objectName,
+                                                @RequestHeader("Content-Length") String contentLength,
+                                                @RequestHeader("Content-MD5") String contentMD5){
+        return null;
+    }
+
+    @DeleteMapping(value = "/{bucketName}/{objectName}",params = "partNumber")
+    public ResponseEntity deletePart(@PathVariable("bucketName") String bucketName,
+                                    @PathVariable("objectName") String objectName,
+                                    @RequestParam("partNumber") String partNumber){
+        return null;
+    }
+
+    @DeleteMapping(value = "/{bucketName}/{objectName}",params = "delete")
+    public ResponseEntity deleteObject(@PathVariable("bucketName") String bucketName,
+                                       @PathVariable("objectName") String objectName){
+        return null;
+    }
 
     @GetMapping("/{bucketName}/{objectName}")
     void downloadObject(@PathVariable String bucketName, @PathVariable String objectName){}
@@ -80,7 +117,7 @@ public class BucketController {
     @GetMapping("/{bucketName}/{objectName}?metadata&key={key}")
     void getObjectMetadata(){}
 
-    @GetMapping("/{bucketName}/{objectName}?metadata")
+    @GetMapping(value = "/{bucketName}/{objectName}",params = "metadata")
     void getAllMetadata(){}
 
 
