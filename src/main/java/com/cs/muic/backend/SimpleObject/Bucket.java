@@ -8,6 +8,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 @Data
@@ -17,11 +18,11 @@ public class Bucket {
 
     private int created;
     private int modified;
-    private List<Content> objects;
+    public HashMap<String, Content> objects;
 
     public Bucket(String name){
         this.name = name;
-        this.objects = new ArrayList<>();
+        this.objects = new HashMap<>();
 //        this.created = this.id.getTimestamp();
     }
 
@@ -57,11 +58,20 @@ public class Bucket {
         this.modified = modified;
     }
 
-    public List<Content> getObjects() {
-        return objects;
-    }
+//    public HashMap<String, Content> getObjects() {
+//        return objects;
+//    }
+//
+//    public void setObjects(List<Content> objects) {
+//        this.objects = objects;
+//    }
 
-    public void setObjects(List<Content> objects) {
-        this.objects = objects;
-    }
+//    public Content getObjectByName(String objectName){
+//        for (Content c: objects){
+//            if (c.getName().equals(objectName)){
+//                return c;
+//            }
+//        }
+//        return null;
+//    }
 }

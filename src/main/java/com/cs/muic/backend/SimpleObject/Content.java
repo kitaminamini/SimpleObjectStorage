@@ -2,14 +2,19 @@ package com.cs.muic.backend.SimpleObject;
 
 import org.bson.types.ObjectId;
 
+import java.io.File;
+
 public class Content {
     private ObjectId id;
     private String name;
-
     private int created;
     private int modified;
+    private boolean complete;
+    private long contentLength;
+
     public Content(String name){
         this.name = name;
+        this.complete = false;
     }
 
     public String getName() {
@@ -28,7 +33,13 @@ public class Content {
         return modified;
     }
 
-//    public void setId(long id) {
+    public boolean getComplete(){return complete; }
+
+    public long getContentLength() {
+        return contentLength;
+    }
+
+    //    public void setId(long id) {
 //        this.id = id;
 //    }
 
@@ -44,4 +55,11 @@ public class Content {
         this.modified = modified;
     }
 
+    public void setComplete(boolean complete) {
+        this.complete = complete;
+    }
+
+    public void setContentLength(long contentLength) {
+        this.contentLength = contentLength;
+    }
 }
