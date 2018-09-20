@@ -1,35 +1,46 @@
 package com.cs.muic.backend.SimpleObject;
 
 import org.bson.types.ObjectId;
+import org.springframework.data.annotation.Id;
 
 import java.io.File;
+import java.time.Instant;
+import java.util.HashMap;
 
 public class Content {
-    private ObjectId id;
+//    private ObjectId id;
+    @Id
     private String name;
-    private int created;
-    private int modified;
+
+    private long created;
+    private long modified;
     private boolean complete;
     private long contentLength;
+    private String eTag;
+    public HashMap<String, byte[]> partMD5s;
 
     public Content(String name){
         this.name = name;
         this.complete = false;
+        Long now = Instant.now().toEpochMilli();
+        this.created = now;
+        this.modified = now;
+        this.partMD5s = new HashMap<>();
     }
 
     public String getName() {
         return name;
     }
 
-    public ObjectId getId() {
-        return id;
-    }
+//    public ObjectId getId() {
+//        return id;
+//    }
 
-    public int getCreated() {
+    public long getCreated() {
         return created;
     }
 
-    public int getModified() {
+    public long getModified() {
         return modified;
     }
 
@@ -37,6 +48,10 @@ public class Content {
 
     public long getContentLength() {
         return contentLength;
+    }
+
+    public String geteTag() {
+        return eTag;
     }
 
     //    public void setId(long id) {
@@ -47,12 +62,12 @@ public class Content {
         this.name = name;
     }
 
-    public void setCreated(int created) {
+    public void setCreated(long created) {
         this.created = created;
     }
 
-    public void setModified(int modified) {
-        this.modified = modified;
+    public void setModified() {
+        this.modified = Instant.now().toEpochMilli();
     }
 
     public void setComplete(boolean complete) {
@@ -61,5 +76,9 @@ public class Content {
 
     public void setContentLength(long contentLength) {
         this.contentLength = contentLength;
+    }
+
+    public void seteTag(String eTag) {
+        this.eTag = eTag;
     }
 }

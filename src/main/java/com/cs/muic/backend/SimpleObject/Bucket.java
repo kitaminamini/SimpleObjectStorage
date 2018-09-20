@@ -7,22 +7,27 @@ import lombok.Data;
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
 @Data
 public class Bucket {
-    private ObjectId id;
+//    private ObjectId id;
+    @Id
     private String name;
 
-    private int created;
-    private int modified;
+    private long created;
+    private long modified;
     public HashMap<String, Content> objects;
 
     public Bucket(String name){
         this.name = name;
         this.objects = new HashMap<>();
+        Long now = Instant.now().toEpochMilli();
+        this.created = now;
+        this.modified = now;
 //        this.created = this.id.getTimestamp();
     }
 
@@ -30,15 +35,15 @@ public class Bucket {
         return name;
     }
 
-    public ObjectId getId() {
-        return id;
-    }
+//    public ObjectId getId() {
+//        return id;
+//    }
 
-    public int getCreated() {
+    public long getCreated() {
         return created;
     }
 
-    public int getModified() {
+    public long getModified() {
         return modified;
     }
 
@@ -54,8 +59,8 @@ public class Bucket {
         this.created = created;
     }
 
-    public void setModified(int modified) {
-        this.modified = modified;
+    public void setModified() {
+        this.modified = Instant.now().toEpochMilli();
     }
 
 //    public HashMap<String, Content> getObjects() {

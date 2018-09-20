@@ -6,4 +6,6 @@ public interface BucketRepository extends MongoRepository<Bucket, Long> {
 
     Bucket findBucketByName(String name);
 
+    boolean existsBucketByName(String name);
+
 }
