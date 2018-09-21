@@ -1,0 +1,12 @@
+version: '3.2'
+services:
+  db:
+    image: mongo:3.2
+    volumes:
+      - ./datastore/db:/data/db
+      - ./datastore/configdb:/data/configdb
+  webapp:
+    build:
+      context: webapp
+    ports:
+      - "8280:8280"
