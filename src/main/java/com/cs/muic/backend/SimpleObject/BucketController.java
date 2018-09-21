@@ -64,18 +64,26 @@ public class BucketController {
 
     @DeleteMapping(value = "/{bucketname}", params = "delete")
     ResponseEntity delete(@PathVariable String bucketname){
+        if (bucketname == null || bucketname.isEmpty()){
+            return ResponseEntity.badRequest().build();
+        }
+
         Bucket B = repository.findBucketByName(bucketname);
         if (B==null){
             return ResponseEntity.badRequest().build();
         }
 
-        if (new File("./buckets/"+bucketname).delete()){
-            repository.delete(B);
-            return ResponseEntity.ok().build();
-        }
         else{
-            return ResponseEntity.badRequest().build();
+            try{
+                FileUtils.deleteDirectory(new File("./buckets/"+bucketname));
+                repository.delete(B);
+                return ResponseEntity.ok().build();
+            }
+            catch (IOException e){
+                return ResponseEntity.badRequest().build();
+            }
         }
+
     }
 
     @GetMapping(value = "/{bucketname}", params="list")
@@ -158,8 +166,6 @@ public class BucketController {
                 boolean lenMatch = targetLen.equals(contentLength);
 
                 if (md5Match && lenMatch){
-                    System.out.println("200 OK");
-
                     return ResponseEntity.ok(json);
                 }
                 else if (!lenMatch){
@@ -176,7 +182,7 @@ public class BucketController {
                 }
 
             }catch (IOException e){
-                System.out.println("+++++++++++++failed to process request++++++++++++");
+
             }
 
             return ResponseEntity.badRequest().build();
@@ -188,7 +194,7 @@ public class BucketController {
     }
 
 
-// ------- TODO havent done MD5 -------------
+
     @PostMapping(value = "/{bucketName}/{objectName}",params = "complete")
     ResponseEntity completeMultiPartUpload(@PathVariable("bucketName") String bucketName,
                                             @PathVariable("objectName") String objectName){
@@ -264,23 +270,34 @@ public class BucketController {
     @DeleteMapping(value = "/{bucketName}/{objectName}",params = "delete")
     ResponseEntity deleteObject(@PathVariable("bucketName") String bucketName,
                                        @PathVariable("objectName") String objectName){
-        File directory = new File("./buckets/"+bucketName);
-        File[] filesInDir = directory.listFiles();
-        if (filesInDir != null){
-            for (File f : filesInDir){
-                String filename = f.getName();
-                if (filename.split(".part")[0] == objectName){
-                    File deleteFile = new File("./buckets/"+bucketName+"/"+filename);
-                    deleteFile.delete();
-                }
-            }
-            String objectKey = objectName.replace('.', '/');
-            Bucket bucket = repository.findBucketByName(bucketName);
+
+        String objectKey = objectName.replace('.', '/');
+        Bucket bucket = repository.findBucketByName(bucketName);
+        if (bucket == null){
+            return ResponseEntity.badRequest().build();
+        }
+        if (bucket.objects.containsKey(objectKey)){
             bucket.objects.remove(objectKey);
             bucket.setModified();
             repository.save(bucket);
+
+            File directory = new File("./buckets/"+bucketName);
+            File[] filesInDir = directory.listFiles();
+            if (filesInDir != null){
+                for (File f : filesInDir){
+                    String filename = f.getName();
+                    if (filename.split(".part")[0].equals(objectName)){
+                        File deleteFile = new File("./buckets/"+bucketName+"/"+filename);
+                        deleteFile.delete();
+                    }
+                }
+            }
+            return ResponseEntity.ok().build();
         }
-        return null;
+
+        else{
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @GetMapping(value = "/{bucketName}/{objectName}")
@@ -338,6 +355,9 @@ public class BucketController {
                     return ResponseEntity.badRequest().build();
                 }
 
+//                System.out.println(from);
+//                System.out.println(to);
+
                 // Find from which part to which part is in range
                 File directory = new File("./buckets/"+bucketName);
                 File[] filesInDir = directory.listFiles();
@@ -364,7 +384,7 @@ public class BucketController {
                             startAtFirstPart = part.length() - (acc - from);
                             InputStream inputStream = new FileInputStream(part);
                             if (startAtFirstPart != 0){
-                                inputStream.skip(startAtFirstPart - 1);
+                                inputStream.skip(startAtFirstPart);
                             }
                             PartsToBeRead.add(inputStream);
                             if (to <= acc){
@@ -376,6 +396,7 @@ public class BucketController {
                         }
 
                         else if (to <= acc){
+
                             lastPart = i;
                             endAtLastPart = part.length() - (acc - to);
                             diffAtEnd = acc - to;
@@ -385,6 +406,7 @@ public class BucketController {
                         }
 
                         else if (inRange){
+
                             InputStream inputStream = new FileInputStream(part);
                             PartsToBeRead.add(inputStream);
                         }
@@ -414,6 +436,8 @@ public class BucketController {
                             break;
                         }
                     }
+                    outputStream.close();
+                    combinedIS.close();
 //                    IOUtils.copyLarge(outputStream, response.getOutputStream());
                     return ResponseEntity.ok().build();
 
@@ -445,10 +469,10 @@ public class BucketController {
             return ResponseEntity.notFound().build();
         }
         String objectKey = objectName.replace('.', '/');
-        Content object = bucket.objects.get(objectKey);
-        if (object == null){
+        if (!bucket.objects.containsKey(objectKey)){
             return ResponseEntity.notFound().build();
         }
+        Content object = bucket.objects.get(objectKey);
 
         if (key == null || key.isEmpty()){
             return ResponseEntity.ok().build();
