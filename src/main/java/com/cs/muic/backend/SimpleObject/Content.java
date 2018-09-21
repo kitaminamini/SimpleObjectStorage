@@ -18,6 +18,7 @@ public class Content {
     private long contentLength;
     private String eTag;
     public HashMap<String, byte[]> partMD5s;
+    public HashMap<String, String> metaData;
 
     public Content(String name){
         this.name = name;
@@ -26,6 +27,7 @@ public class Content {
         this.created = now;
         this.modified = now;
         this.partMD5s = new HashMap<>();
+        this.metaData = new HashMap<>();
     }
 
     public String getName() {

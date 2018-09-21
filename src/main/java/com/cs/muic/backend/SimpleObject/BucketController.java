@@ -6,6 +6,7 @@ import com.oracle.javafx.jmx.json.impl.JSONMessages;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.springframework.data.domain.Range;
+import org.springframework.data.repository.query.Param;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
@@ -395,7 +396,7 @@ public class BucketController {
 //                    i = 0;
 //                    acc = 0;
 
-                    OutputStream outputStream = new ByteArrayOutputStream();
+                    OutputStream outputStream = new BufferedOutputStream(response.getOutputStream());
                     byte[] buffer = new byte[2048];
                     int read;
 //                        for (File part : PartsToBeRead) {
@@ -433,19 +434,92 @@ public class BucketController {
 
     }
 
-    @PutMapping("/{bucketName}/{objectName}?metadata&key={key}")
-    void updateObjectMetadata(){}
+    @PutMapping(value = "/{bucketName}/{objectName}", params = "metadata")
+    ResponseEntity updateObjectMetadata(@PathVariable("bucketName") String bucketName,
+                                      @PathVariable("objectName") String objectName,
+                                      @RequestParam(value = "key") String key,
+                                      @RequestBody String value){
 
-    @DeleteMapping("/{bucketName}/{objectName}?metadata&key={key}")
-    void removeObjectMetadata(){}
+        Bucket bucket = repository.findBucketByName(bucketName);
+        if (bucket == null){
+            return ResponseEntity.notFound().build();
+        }
+        String objectKey = objectName.replace('.', '/');
+        Content object = bucket.objects.get(objectKey);
+        if (object == null){
+            return ResponseEntity.notFound().build();
+        }
 
-    @GetMapping("/{bucketName}/{objectName}?metadata&key={key}")
-    void getObjectMetadata(){}
+        if (key == null || key.isEmpty()){
+            return ResponseEntity.ok().build();
+        }
 
-    @GetMapping(value = "/{bucketName}/{objectName}",params = "metadata")
-    void getAllMetadata(){}
+        object.metaData.put(key, value);
+        object.setModified();
+        bucket.objects.put(objectKey, object);
+        bucket.setModified();
+        repository.save(bucket);
 
+        return ResponseEntity.ok().build();
+    }
 
+    @DeleteMapping(value = "/{bucketName}/{objectName}", params = "metadata")
+    ResponseEntity removeObjectMetadata(@PathVariable("bucketName") String bucketName,
+                                      @PathVariable("objectName") String objectName,
+                                      @RequestParam(value = "key") String key){
+        Bucket bucket = repository.findBucketByName(bucketName);
+        if (bucket == null){
+            return ResponseEntity.notFound().build();
+        }
+        String objectKey = objectName.replace('.', '/');
+        Content object = bucket.objects.get(objectKey);
+        if (object == null){
+            return ResponseEntity.notFound().build();
+        }
+
+        if (key == null || key.isEmpty()){
+            return ResponseEntity.ok().build();
+        }
+
+        object.metaData.remove(key);
+        object.setModified();
+        bucket.objects.put(objectKey, object);
+        bucket.setModified();
+        repository.save(bucket);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping(value = "/{bucketName}/{objectName}", params = "metadata")
+    ResponseEntity getObjectMetadata(@PathVariable("bucketName") String bucketName,
+                                     @PathVariable("objectName") String objectName,
+                                     @RequestParam(value = "key", required = false) String key){
+
+        Bucket bucket = repository.findBucketByName(bucketName);
+        if (bucket == null){
+            return ResponseEntity.notFound().build();
+        }
+        String objectKey = objectName.replace('.', '/');
+        Content object = bucket.objects.get(objectKey);
+        if (object == null){
+            return ResponseEntity.notFound().build();
+        }
+
+        HashMap<String, String> json = new HashMap<>();
+
+        if (key == null){
+
+            return ResponseEntity.ok(object.metaData);
+        }
+
+        if (key.isEmpty() || !object.metaData.containsKey(key)){
+            return ResponseEntity.ok(json);
+        }
+
+        json.put(key, object.metaData.get(key));
+        return ResponseEntity.ok(json);
+
+    }
 
 
 }
