@@ -1,0 +1,5 @@
+{
+  "test.py::test_download": true,
+  "test.py::test_full_download": true,
+  "test.py::test_uploading": true
+}

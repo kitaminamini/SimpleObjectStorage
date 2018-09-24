@@ -1,0 +1,9 @@
+[
+  "test.py::test_uploading",
+  "test.py::test_download",
+  "test.py::test_full_download",
+  "test.py::test_delete_bucket",
+  "test.py::test_delete_object",
+  "test.py::test_metaData",
+  "test.py::test_last"
+]

@@ -2,7 +2,7 @@ package com.cs.muic.backend.SimpleObject;
 
 
 import com.mongodb.operation.BatchCursor;
-import com.oracle.javafx.jmx.json.impl.JSONMessages;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.springframework.data.domain.Range;
@@ -36,9 +36,17 @@ public class BucketController {
         this.repository = repository;
     }
 
+    boolean isBucketNameValid(String bucketName){
+        return bucketName.matches("^[a-zA-Z0-9]+$");
+    }
+
+    boolean isObjectNameValid(String objectName){
+        return objectName.matches("^([a-zA-Z0-9]+[.]*)+[a-zA-Z0-9]+$");
+    }
+
     @PostMapping(value = "/{bucketName}", params = "create")
     ResponseEntity newBucket(@PathVariable String bucketName, HttpServletResponse response){
-        if (repository.existsBucketByName(bucketName)){
+        if (repository.existsBucketByName(bucketName) || !isBucketNameValid(bucketName)){
             return ResponseEntity.badRequest().build();
         }
         try{
@@ -89,7 +97,7 @@ public class BucketController {
     @GetMapping(value = "/{bucketname}", params="list")
     ResponseEntity getObjects(@PathVariable String bucketname){
         Bucket B = repository.findBucketByName(bucketname);
-        if (B == null){
+        if (B == null || !isBucketNameValid(bucketname)){
             return ResponseEntity.badRequest().build();
         }
         return ResponseEntity.ok(B);
@@ -98,7 +106,7 @@ public class BucketController {
     @PostMapping(value = "/{bucketName}/{objectName}", params = "create")
     ResponseEntity createObject(@PathVariable String bucketName, @PathVariable String objectName){
         Bucket B = repository.findBucketByName(bucketName);
-        if (B == null){
+        if (B == null || !isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.badRequest().build();
         }
 
@@ -137,6 +145,31 @@ public class BucketController {
                                  @RequestHeader("Content-Length") String contentLength,
                                  @RequestHeader("Content-MD5") String contentMD5,
                                  HttpServletRequest request){
+        HashMap<String, String> json = new HashMap<>();
+        long P;
+        try {
+            P = Long.parseLong(partNumber);
+            if (P < 1 || P > 10000){
+                json.put("partNumber", partNumber);
+                json.put("error", "InvalidPartNumber");
+                return ResponseEntity.badRequest().body(json);
+            }
+        }
+        catch(Exception e){
+            json.put("partNumber", partNumber);
+            json.put("error", "InvalidPartNumber");
+            return ResponseEntity.badRequest().body(json);
+        }
+        if (!isBucketNameValid(bucketName)){
+            json.put("partNumber", partNumber);
+            json.put("error", "InvalidBucket");
+            return ResponseEntity.badRequest().body(json);
+        }
+        else if (!isObjectNameValid(objectName)){
+            json.put("partNumber", partNumber);
+            json.put("error", "InvalidObject");
+            return ResponseEntity.badRequest().body(json);
+        }
 
         String objectKey = objectName.replace('.', '/');
         if (repository.findBucketByName(bucketName).objects.containsKey(objectKey)){
@@ -156,7 +189,6 @@ public class BucketController {
                 String targetLen = Long.toString(target.length());
                 fileInputStream.close();
 
-                HashMap<String, String> json = new HashMap<>();
                 json.put("md5", md5);
                 json.put("length", targetLen);
                 json.put("partNumber", partNumber);
@@ -204,6 +236,11 @@ public class BucketController {
         Bucket bucket = repository.findBucketByName(bucketName);
         if (bucket  == null){
             json.put("error", "InvalidBucket");
+            return ResponseEntity.badRequest().body(json);
+        }
+
+        else if (!isObjectNameValid(objectName)){
+            json.put("error", "InvalidObject");
             return ResponseEntity.badRequest().body(json);
         }
 
@@ -273,7 +310,7 @@ public class BucketController {
 
         String objectKey = objectName.replace('.', '/');
         Bucket bucket = repository.findBucketByName(bucketName);
-        if (bucket == null){
+        if (bucket == null || !isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.badRequest().build();
         }
         if (bucket.objects.containsKey(objectKey)){
@@ -305,7 +342,9 @@ public class BucketController {
                         @PathVariable("objectName") String objectName,
                         HttpServletRequest request,
                         HttpServletResponse response){
-
+        if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
+            return ResponseEntity.badRequest().build();
+        }
         String objectKey = objectName.replace('.', '/');
         Content object = repository.findBucketByName(bucketName)
                 .objects.get(objectKey);
@@ -463,7 +502,9 @@ public class BucketController {
                                       @PathVariable("objectName") String objectName,
                                       @RequestParam(value = "key") String key,
                                       @RequestBody String value){
-
+        if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
+            return ResponseEntity.notFound().build();
+        }
         Bucket bucket = repository.findBucketByName(bucketName);
         if (bucket == null){
             return ResponseEntity.notFound().build();
@@ -491,6 +532,9 @@ public class BucketController {
     ResponseEntity removeObjectMetadata(@PathVariable("bucketName") String bucketName,
                                       @PathVariable("objectName") String objectName,
                                       @RequestParam(value = "key") String key){
+        if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
+            return ResponseEntity.notFound().build();
+        }
         Bucket bucket = repository.findBucketByName(bucketName);
         if (bucket == null){
             return ResponseEntity.notFound().build();
@@ -518,7 +562,9 @@ public class BucketController {
     ResponseEntity getObjectMetadata(@PathVariable("bucketName") String bucketName,
                                      @PathVariable("objectName") String objectName,
                                      @RequestParam(value = "key", required = false) String key){
-
+        if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
+            return ResponseEntity.notFound().build();
+        }
         Bucket bucket = repository.findBucketByName(bucketName);
         if (bucket == null){
             return ResponseEntity.notFound().build();
