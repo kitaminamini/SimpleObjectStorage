@@ -1,0 +1,1 @@
+curl --data -H "Accept: application/json" -H "Content-Type: application/json" -H "Range: 0-220000" -X GET http://localhost:8280/buckettest/objecttest >> ~/Desktop/ttt

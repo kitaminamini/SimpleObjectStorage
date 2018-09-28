@@ -37,11 +37,11 @@ public class BucketController {
     }
 
     boolean isBucketNameValid(String bucketName){
-        return bucketName.matches("^[a-zA-Z0-9]+$");
+        return bucketName.matches("^[a-zA-Z0-9\\-_]+$");
     }
 
     boolean isObjectNameValid(String objectName){
-        return objectName.matches("^([a-zA-Z0-9]+[.]*)+[a-zA-Z0-9]+$");
+        return objectName.matches("^([a-zA-Z0-9\\-_]+[.]*)+[a-zA-Z0-9\\-_]+$");
     }
 
     @PostMapping(value = "/{bucketName}", params = "create")
