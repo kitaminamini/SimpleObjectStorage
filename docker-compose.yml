@@ -5,8 +5,15 @@ services:
     volumes:
       - ./datastore/db:/data/db
       - ./datastore/configdb:/data/configdb
-  webapp:
+  sos:
     build:
       context: webapp
     ports:
       - "8280:8280"
+    volumes:
+      - ./store:/tmp
+
+networks:
+  default:
+    external:
+      name: videothumbnail

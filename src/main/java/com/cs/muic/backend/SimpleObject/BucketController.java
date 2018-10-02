@@ -41,7 +41,7 @@ public class BucketController {
     }
 
     boolean isObjectNameValid(String objectName){
-        return objectName.matches("^([a-zA-Z0-9\\-_]+[.]*)+[a-zA-Z0-9-_]+$");
+        return objectName.matches("^([a-zA-Z0-9\\-_]+[.]*)+[a-zA-Z0-9\\-_]+$");
     }
 
     @PostMapping(value = "/{bucketName}", params = "create")
@@ -51,7 +51,7 @@ public class BucketController {
         }
         try{
             Bucket bucket = new Bucket(bucketName);
-            new File("./buckets/"+bucketName).mkdirs();
+            new File("/tmp/buckets/"+bucketName).mkdirs();
             Bucket resBucket = repository.save(bucket);
             return ResponseEntity.ok(resBucket);
         }
@@ -83,7 +83,7 @@ public class BucketController {
 
         else{
             try{
-                FileUtils.deleteDirectory(new File("./buckets/"+bucketname));
+                FileUtils.deleteDirectory(new File("/tmp/buckets/"+bucketname));
                 repository.delete(B);
                 return ResponseEntity.ok().build();
             }
@@ -178,7 +178,7 @@ public class BucketController {
 
                 String prefixZeros = new String(new char[5-partNumber.length()]).replace("\0", "0");
 
-                File target = new File("./buckets/"+bucketName+"/"+objectName+".part"+prefixZeros+partNumber);
+                File target = new File("/tmp/buckets/"+bucketName+"/"+objectName+".part"+prefixZeros+partNumber);
 
                 FileUtils.copyInputStreamToFile(inputStream, target);
 
@@ -250,7 +250,7 @@ public class BucketController {
             json.put("error", "InvalidObjectName");
             return ResponseEntity.badRequest().body(json);
         }
-        File directory = new File("./buckets/"+bucketName);
+        File directory = new File("/tmp/buckets/"+bucketName);
         File[] filesInDir = directory.listFiles();
         List<File> parts = Arrays.stream(filesInDir)
                 .filter(f -> f.getName().split(".part")[0].equals(objectName))
@@ -294,7 +294,7 @@ public class BucketController {
     ResponseEntity deletePart(@PathVariable("bucketName") String bucketName,
                                     @PathVariable("objectName") String objectName,
                                     @RequestParam("partNumber") String partNumber){
-        File file = new File("./buckets/"+bucketName+"/"+objectName+".part"+partNumber);
+        File file = new File("/tmp/buckets/"+bucketName+"/"+objectName+".part"+partNumber);
         if (file.delete()){
             return ResponseEntity.ok().build();
         }
@@ -318,13 +318,13 @@ public class BucketController {
             bucket.setModified();
             repository.save(bucket);
 
-            File directory = new File("./buckets/"+bucketName);
+            File directory = new File("/tmp/buckets/"+bucketName);
             File[] filesInDir = directory.listFiles();
             if (filesInDir != null){
                 for (File f : filesInDir){
                     String filename = f.getName();
                     if (filename.split(".part")[0].equals(objectName)){
-                        File deleteFile = new File("./buckets/"+bucketName+"/"+filename);
+                        File deleteFile = new File("/tmp/buckets/"+bucketName+"/"+filename);
                         deleteFile.delete();
                     }
                 }
@@ -351,142 +351,137 @@ public class BucketController {
 
         if (object.getComplete()){
             String ranges = request.getHeader("Range");
+            if (ranges == null || ranges.isEmpty()){
+                ranges = "bytes=0-";
+            }
             response.setHeader("Content-Range", ranges);
-            if (ranges != null && !ranges.isEmpty()){
-//            String[] rs = ranges.substring(6).split(",");
-//            for (String range : rs){
-                String range = ranges.substring(6);
-                Pattern pattern = Pattern.compile("(-?[0-9]*)-(-?[0-9]*)");
-                Matcher matcher = pattern.matcher(range);
-                matcher.find();
-                String fromstr = matcher.group(1);
-                String tostr = matcher.group(2);
-                long contentLength = object.getContentLength();
-                long from;
-                long to;
-                if (fromstr.length()==0 && tostr.length()==0){
-                    return ResponseEntity.badRequest().build();
-                }
+            String range = ranges.substring(6);
+            Pattern pattern = Pattern.compile("(-?[0-9]*)-(-?[0-9]*)");
+            Matcher matcher = pattern.matcher(range);
+            matcher.find();
+            String fromstr = matcher.group(1);
+            String tostr = matcher.group(2);
+            long contentLength = object.getContentLength();
+            long from;
+            long to;
+            if (fromstr.length()==0 && tostr.length()==0){
+                return ResponseEntity.badRequest().build();
+            }
 
-                if (fromstr.length() == 0){
-                    from = -1;
-                }
-                else{
-                    from = Long.parseLong(fromstr);
-                }
+            if (fromstr.length() == 0){
+                from = -1;
+            }
+            else{
+                from = Long.parseLong(fromstr);
+            }
 
-                if (tostr.length() == 0){
-                    to = -1;
-                }
-                else {
-                    to = Long.parseLong(tostr);
-                }
+            if (tostr.length() == 0){
+                to = -1;
+            }
+            else {
+                to = Long.parseLong(tostr);
+            }
 
-                // convert negative to positive
-                if (from < 0){
-                    from = from + contentLength +1;
-                }
-                if (to < 0){
-                    to = to + contentLength + 1;
-                }
+            // convert negative to positive
+            if (from < 0){
+                from = from + contentLength +1;
+            }
+            if (to < 0){
+                to = to + contentLength + 1;
+            }
 
-                if (from > to || to > contentLength){
-                    return ResponseEntity.badRequest().build();
-                }
+            if (from > to || to > contentLength){
+                return ResponseEntity.badRequest().build();
+            }
 
 //                System.out.println(from);
 //                System.out.println(to);
 
-                // Find from which part to which part is in range
-                File directory = new File("./buckets/"+bucketName);
-                File[] filesInDir = directory.listFiles();
-                List<File> parts = Arrays.stream(filesInDir)
-                        .filter(f -> f.getName().split(".part")[0].equals(objectName))
-                        .collect(Collectors.toList());
-                Collections.sort(parts);
-                List<InputStream> PartsToBeRead = new ArrayList<>();
-                int firstPart = 0;
-                int lastPart = 0;
-                long startAtFirstPart = 0;
-                long endAtLastPart = 0;
-                long acc = 0;
-                int i = 0;
-                long diffAtEnd = 0;
-                boolean inRange = false;
-                try {
-                    for (File part: parts){
-                        acc+=part.length();
-                        i++;
-                        if (!inRange && from <= acc){
-                            inRange = true;
-                            firstPart = i;
-                            startAtFirstPart = part.length() - (acc - from);
-                            InputStream inputStream = new FileInputStream(part);
-                            if (startAtFirstPart != 0){
-                                inputStream.skip(startAtFirstPart);
-                            }
-                            PartsToBeRead.add(inputStream);
-                            if (to <= acc){
-                                lastPart = i;
-                                endAtLastPart = part.length() - (acc - to);
-                                diffAtEnd = acc - to;
-                                break;
-                            }
+            // Find from which part to which part is in range
+            File directory = new File("/tmp/buckets/"+bucketName);
+            File[] filesInDir = directory.listFiles();
+            List<File> parts = Arrays.stream(filesInDir)
+                    .filter(f -> f.getName().split(".part")[0].equals(objectName))
+                    .collect(Collectors.toList());
+            Collections.sort(parts);
+            List<InputStream> PartsToBeRead = new ArrayList<>();
+            int firstPart = 0;
+            int lastPart = 0;
+            long startAtFirstPart = 0;
+            long endAtLastPart = 0;
+            long acc = 0;
+            int i = 0;
+            long diffAtEnd = 0;
+            boolean inRange = false;
+            try {
+                for (File part: parts){
+                    acc+=part.length();
+                    i++;
+                    if (!inRange && from <= acc){
+                        inRange = true;
+                        firstPart = i;
+                        startAtFirstPart = part.length() - (acc - from);
+                        InputStream inputStream = new FileInputStream(part);
+                        if (startAtFirstPart != 0){
+                            inputStream.skip(startAtFirstPart);
                         }
-
-                        else if (to <= acc){
-
+                        PartsToBeRead.add(inputStream);
+                        if (to <= acc){
                             lastPart = i;
                             endAtLastPart = part.length() - (acc - to);
                             diffAtEnd = acc - to;
-                            InputStream inputStream = new FileInputStream(part);
-                            PartsToBeRead.add(inputStream);
                             break;
                         }
-
-                        else if (inRange){
-
-                            InputStream inputStream = new FileInputStream(part);
-                            PartsToBeRead.add(inputStream);
-                        }
                     }
-                    SequenceInputStream combinedIS = new SequenceInputStream(
-                            Collections.enumeration(PartsToBeRead));
+
+                    else if (to <= acc){
+
+                        lastPart = i;
+                        endAtLastPart = part.length() - (acc - to);
+                        diffAtEnd = acc - to;
+                        InputStream inputStream = new FileInputStream(part);
+                        PartsToBeRead.add(inputStream);
+                        break;
+                    }
+
+                    else if (inRange){
+
+                        InputStream inputStream = new FileInputStream(part);
+                        PartsToBeRead.add(inputStream);
+                    }
+                }
+                SequenceInputStream combinedIS = new SequenceInputStream(
+                        Collections.enumeration(PartsToBeRead));
 
 
 //                    i = 0;
 //                    acc = 0;
 
-                    OutputStream outputStream = new BufferedOutputStream(response.getOutputStream());
-                    byte[] buffer = new byte[2048];
-                    int read;
+                OutputStream outputStream = new BufferedOutputStream(response.getOutputStream());
+                byte[] buffer = new byte[2048];
+                int read;
 //                        for (File part : PartsToBeRead) {
 //                            InputStream inputStream =
 //                        }
-                    long toRead = to - from + 1;
-                    while ((read = combinedIS.read(buffer)) > 0){
-                        if ((toRead -= read) > 0){
-                            outputStream.write(buffer, 0, read);
-                            outputStream.flush();
-                        }
-                        else{
-                            outputStream.write(buffer, 0, (int)toRead+read);
-                            outputStream.flush();
-                            break;
-                        }
+                long toRead = to - from + 1;
+                while ((read = combinedIS.read(buffer)) > 0){
+                    if ((toRead -= read) > 0){
+                        outputStream.write(buffer, 0, read);
+                        outputStream.flush();
                     }
-                    outputStream.close();
-                    combinedIS.close();
+                    else{
+                        outputStream.write(buffer, 0, (int)toRead+read);
+                        outputStream.flush();
+                        break;
+                    }
+                }
+                outputStream.close();
+                combinedIS.close();
 //                    IOUtils.copyLarge(outputStream, response.getOutputStream());
-                    return ResponseEntity.ok().build();
-
-                }
-                catch (IOException e){
-                    return ResponseEntity.notFound().build();
-                }
+                return ResponseEntity.ok().build();
 
             }
-            else {
+            catch (IOException e){
                 return ResponseEntity.notFound().build();
             }
         }
