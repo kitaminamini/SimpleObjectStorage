@@ -1,39 +1,39 @@
 package com.cs.muic.backend.SimpleObject;
 
-
-import com.mongodb.operation.BatchCursor;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.springframework.data.domain.Range;
-import org.springframework.data.repository.query.Param;
+import com.cs.muic.backend.SimpleObject.services.BucketService;
+import com.cs.muic.backend.SimpleObject.services.MetadataService;
+import com.cs.muic.backend.SimpleObject.services.ObjectService;
+import com.mongodb.MongoException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
-
-import javax.servlet.ServletException;
-import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.Part;
-import java.io.*;
-import java.net.SocketTimeoutException;
-import java.security.MessageDigest;
+import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
+import java.util.HashMap;
 
 @RestController
-
 public class BucketController {
 
-    private final BucketRepository repository;
+//    private final BucketRepository repository;
+    private final BucketService bucketService;
+    private final ObjectService objectService;
+    private final MetadataService metadataService;
 
-    BucketController(BucketRepository repository){
-        this.repository = repository;
+//    BucketController(BucketRepository repository){
+//        this.repository = repository;
+//        this.bucketService = new BucketService(repository);
+//        this.objectService = new ObjectService(repository);
+//        this.metadataService = new MetadataService(repository);
+//    }
+
+    @Autowired
+    public BucketController(BucketService bucketService, ObjectService objectService, MetadataService metadataService){
+        this.bucketService = bucketService;
+        this.objectService = objectService;
+        this.metadataService = metadataService;
     }
 
     boolean isBucketNameValid(String bucketName){
@@ -46,105 +46,93 @@ public class BucketController {
 
     @PostMapping(value = "/{bucketName}", params = "create")
     ResponseEntity newBucket(@PathVariable String bucketName, HttpServletResponse response){
-        if (repository.existsBucketByName(bucketName) || !isBucketNameValid(bucketName)){
+        if (!isBucketNameValid(bucketName)){
             return ResponseEntity.badRequest().build();
         }
         try{
-            Bucket bucket = new Bucket(bucketName);
-            new File("/tmp/buckets/"+bucketName).mkdirs();
-            Bucket resBucket = repository.save(bucket);
-            return ResponseEntity.ok(resBucket);
+            Bucket res = bucketService.createBucket(bucketName);
+            if (res == null){
+                return ResponseEntity.badRequest().build();
+            }
+            else{
+                return ResponseEntity.ok(res);
+            }
         }
-        catch (Exception e){
+        catch (DataAccessResourceFailureException | MongoException e){
             return ResponseEntity.badRequest().build();
         }
     }
 
-    @GetMapping("/buckets/{id}")
-    Bucket one(@PathVariable Long id){
-        return repository.findById(id).orElseThrow(()-> new BucketNotFoundException(id));
-    }
+//    @GetMapping("/buckets/{id}")
+//    Bucket one(@PathVariable Long id){
+//        return repository.findById(id).orElseThrow(()-> new BucketNotFoundException(id));
+//    }
 
-    @GetMapping("/buckets")
-    List<Bucket> all(){
-        return repository.findAll();
-    }
+//    ======== for testing & checking ==============
+//    @GetMapping("/buckets")
+//    List<Bucket> all(){
+//        return repository.findAll();
+//    }
+//    ===============================================
 
     @DeleteMapping(value = "/{bucketname}", params = "delete")
     ResponseEntity delete(@PathVariable String bucketname){
         if (bucketname == null || bucketname.isEmpty()){
             return ResponseEntity.badRequest().build();
         }
-
-        Bucket B = repository.findBucketByName(bucketname);
-        if (B==null){
-            return ResponseEntity.badRequest().build();
-        }
-
         else{
             try{
-                FileUtils.deleteDirectory(new File("/tmp/buckets/"+bucketname));
-                repository.delete(B);
-                return ResponseEntity.ok().build();
+                int res_code = bucketService.delete(bucketname);
+                if (res_code == 200){
+                    return ResponseEntity.ok().build();
+                }
+                else{
+                    return ResponseEntity.badRequest().build();
+                }
             }
             catch (IOException e){
                 return ResponseEntity.badRequest().build();
             }
         }
-
     }
 
     @GetMapping(value = "/{bucketname}", params="list")
     ResponseEntity getObjects(@PathVariable String bucketname){
-        Bucket B = repository.findBucketByName(bucketname);
-        if (B == null || !isBucketNameValid(bucketname)){
+        try{
+            Bucket B = bucketService.find(bucketname);
+            if (B == null || !isBucketNameValid(bucketname)){
+                return ResponseEntity.badRequest().build();
+            }
+            return ResponseEntity.ok(B);
+        }
+        catch (DataAccessResourceFailureException | MongoException e){
             return ResponseEntity.badRequest().build();
         }
-        return ResponseEntity.ok(B);
     }
 
     @PostMapping(value = "/{bucketName}/{objectName}", params = "create")
     ResponseEntity createObject(@PathVariable String bucketName, @PathVariable String objectName){
-        Bucket B = repository.findBucketByName(bucketName);
-        if (B == null || !isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
+
+        if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.badRequest().build();
         }
+        int res_code = objectService.createObject(bucketName, objectName);
 
-        String objectKey = objectName.replace('.', '/');
-
-        if (!B.objects.containsKey(objectKey)){
-            Content newObj = new Content(objectName);
-
-            B.objects.put(objectKey, newObj);
-            //TODO: Add object
-            B.setModified();
-            repository.save(B);
+        if (res_code == 200){
             return ResponseEntity.ok().build();
         }
-
         else{
             return ResponseEntity.badRequest().build();
         }
-
     }
-
-//    private boolean contains(List<Content> objs, String objectName){
-//        if (objs.isEmpty()){ return false; }
-//        for (Content obj : objs){
-//            if (obj.getName().equals(objectName)){
-//                return true;
-//            }
-//        }
-//        return false;
-//    }
 
     @PutMapping(value = "/{bucketName}/{objectName}",params = "partNumber")
     ResponseEntity UploadAllParts(@PathVariable("bucketName") String bucketName,
-                                  @PathVariable("objectName") String objectName,
-                                  @RequestParam("partNumber") String partNumber,
-                                  @RequestHeader("Content-Length") String contentLength,
-                                  @RequestHeader("Content-MD5") String contentMD5,
-                                  HttpServletRequest request){
+                                 @PathVariable("objectName") String objectName,
+                                 @RequestParam("partNumber") String partNumber,
+                                 @RequestHeader("Content-Length") String contentLength,
+                                 @RequestHeader("Content-MD5") String contentMD5,
+                                 HttpServletRequest request){
         HashMap<String, String> json = new HashMap<>();
         long P;
         try {
@@ -170,168 +158,73 @@ public class BucketController {
             json.put("error", "InvalidObject");
             return ResponseEntity.badRequest().body(json);
         }
+        try{
+            json = objectService.upload(bucketName, objectName,
+                    partNumber, contentLength, contentMD5, request, json);
 
-        String objectKey = objectName.replace('.', '/');
-        if (repository.findBucketByName(bucketName).objects.containsKey(objectKey)){
-            try{
-                ServletInputStream inputStream = request.getInputStream();
-
-                String prefixZeros = new String(new char[5-partNumber.length()]).replace("\0", "0");
-
-                File target = new File("/tmp/buckets/"+bucketName+"/"+objectName+".part"+prefixZeros+partNumber);
-
-                FileUtils.copyInputStreamToFile(inputStream, target);
-
-
-
-                FileInputStream fileInputStream = new FileInputStream(target);
-                String md5 = DigestUtils.md5DigestAsHex(fileInputStream);
-                String targetLen = Long.toString(target.length());
-                fileInputStream.close();
-
-                json.put("md5", md5);
-                json.put("length", targetLen);
-                json.put("partNumber", partNumber);
-
-
-                boolean md5Match = md5.equals(contentMD5);
-                boolean lenMatch = targetLen.equals(contentLength);
-
-                if (md5Match && lenMatch){
-                    return ResponseEntity.ok(json);
-                }
-                else if (!lenMatch){
-                    System.out.println("Content-Length not matched");
-                    target.delete();
-                    json.put("error", "LengthMismatched");
-                    return ResponseEntity.badRequest().body(json);
-                }
-                else{
-                    System.out.println("MD5 not matched");
-                    target.delete();
-                    json.put("error", "MD5Mismatched");
-                    return ResponseEntity.badRequest().body(json);
-                }
-
-            }catch (IOException e){
-
+            if (json.containsKey("error")){
+                return ResponseEntity.badRequest().body(json);
+            }
+            else{
+                return ResponseEntity.ok(json);
             }
 
-            return ResponseEntity.badRequest().build();
-        }
-
-        else{
+        }catch (IOException e){
             return ResponseEntity.badRequest().build();
         }
     }
 
-
-
     @PostMapping(value = "/{bucketName}/{objectName}",params = "complete")
     ResponseEntity completeMultiPartUpload(@PathVariable("bucketName") String bucketName,
-                                           @PathVariable("objectName") String objectName){
+                                            @PathVariable("objectName") String objectName){
         HashMap<String, String> json = new HashMap<>();
         json.put("name", objectName);
 
-        Bucket bucket = repository.findBucketByName(bucketName);
-        if (bucket  == null){
-            json.put("error", "InvalidBucket");
-            return ResponseEntity.badRequest().body(json);
-        }
-
-        else if (!isObjectNameValid(objectName)){
+        if (!isObjectNameValid(objectName)){
             json.put("error", "InvalidObject");
             return ResponseEntity.badRequest().body(json);
         }
 
-        String objectKey = objectName.replace('.', '/');
-        Content object = bucket.objects.get(objectKey);
-        if (object == null){
-            json.put("error", "InvalidObjectName");
-            return ResponseEntity.badRequest().body(json);
-        }
-        File directory = new File("/tmp/buckets/"+bucketName);
-        File[] filesInDir = directory.listFiles();
-        List<File> parts = Arrays.stream(filesInDir)
-                .filter(f -> f.getName().split(".part")[0].equals(objectName))
-                .collect(Collectors.toList());
-        Collections.sort(parts);
-        long contentLength = 0;
-        if (!parts.isEmpty()){
-            try{
-                MessageDigest md5 = MessageDigest.getInstance("MD5");
-                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                for (File part : parts){
-                    contentLength+=part.length();
-                    byte[] partMD5 = md5.digest(IOUtils
-                            .toByteArray(new FileInputStream(part)));
-                    outputStream.write(partMD5);
-                    object.partMD5s.put(part.getName().replace('.', '/'), partMD5);
-                }
-                byte[] fullMD5 = md5.digest(outputStream.toByteArray());
-                String eTag = Base64.getEncoder().encodeToString(fullMD5)
-                        +"-"+Integer.toString(parts.size());
-                object.seteTag(eTag);
-                object.setContentLength(contentLength);
-                object.setComplete(true);
-                object.setModified();
-                bucket.objects.put(objectKey, object);
-                bucket.setModified();
-                repository.save(bucket);
-
-                json.put("eTag", eTag);
-                json.put("length", Long.toString(contentLength));
+        try {
+            json = objectService.complete(bucketName, objectName, json);
+            if (json.containsKey("error")){
+                return ResponseEntity.badRequest().body(json);
+            }
+            else{
                 return ResponseEntity.ok(json);
             }
-            catch (NoSuchAlgorithmException | IOException e ){
-                json.put("error", "NoSuchAlgorithmException|IOException");
-            }
+        }
+        catch (NoSuchAlgorithmException | IOException e){
+            json.put("error", "NoSuchAlgorithmException|IOException");
         }
         return ResponseEntity.badRequest().body(json);
     }
 
     @DeleteMapping(value = "/{bucketName}/{objectName}",params = "partNumber")
     ResponseEntity deletePart(@PathVariable("bucketName") String bucketName,
-                              @PathVariable("objectName") String objectName,
-                              @RequestParam("partNumber") String partNumber){
-        File file = new File("/tmp/buckets/"+bucketName+"/"+objectName+".part"+partNumber);
-        if (file.delete()){
+                                    @PathVariable("objectName") String objectName,
+                                    @RequestParam("partNumber") String partNumber){
+        boolean isDeleted = objectService.deletePart(bucketName, objectName, partNumber);
+        if (isDeleted){
             return ResponseEntity.ok().build();
         }
         else {
             return ResponseEntity.badRequest().build();
         }
-
     }
 
     @DeleteMapping(value = "/{bucketName}/{objectName}",params = "delete")
     ResponseEntity deleteObject(@PathVariable("bucketName") String bucketName,
-                                @PathVariable("objectName") String objectName){
+                                       @PathVariable("objectName") String objectName){
 
-        String objectKey = objectName.replace('.', '/');
-        Bucket bucket = repository.findBucketByName(bucketName);
-        if (bucket == null || !isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
+        if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.badRequest().build();
         }
-        if (bucket.objects.containsKey(objectKey)){
-            bucket.objects.remove(objectKey);
-            bucket.setModified();
-            repository.save(bucket);
 
-            File directory = new File("/tmp/buckets/"+bucketName);
-            File[] filesInDir = directory.listFiles();
-            if (filesInDir != null){
-                for (File f : filesInDir){
-                    String filename = f.getName();
-                    if (filename.split(".part")[0].equals(objectName)){
-                        File deleteFile = new File("/tmp/buckets/"+bucketName+"/"+filename);
-                        deleteFile.delete();
-                    }
-                }
-            }
+        boolean isDeleted = objectService.deleteObject(bucketName, objectName);
+        if (isDeleted){
             return ResponseEntity.ok().build();
         }
-
         else{
             return ResponseEntity.badRequest().build();
         }
@@ -339,218 +232,57 @@ public class BucketController {
 
     @GetMapping(value = "/{bucketName}/{objectName}")
     ResponseEntity downloadObject(@PathVariable("bucketName") String bucketName,
-                                  @PathVariable("objectName") String objectName,
-                                  HttpServletRequest request,
-                                  HttpServletResponse response){
+                        @PathVariable("objectName") String objectName,
+                        HttpServletRequest request,
+                        HttpServletResponse response){
         if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.badRequest().build();
         }
-        String objectKey = objectName.replace('.', '/');
-        Content object = repository.findBucketByName(bucketName)
-                .objects.get(objectKey);
-
-        if (object.getComplete()){
-            String ranges = request.getHeader("Range");
-            if (ranges == null || ranges.isEmpty()){
-                ranges = "bytes=0-";
-            }
-            response.setHeader("Content-Range", ranges);
-            String range = ranges.substring(6);
-            Pattern pattern = Pattern.compile("(-?[0-9]*)-(-?[0-9]*)");
-            Matcher matcher = pattern.matcher(range);
-            matcher.find();
-            String fromstr = matcher.group(1);
-            String tostr = matcher.group(2);
-            long contentLength = object.getContentLength();
-            long from;
-            long to;
-            if (fromstr.length()==0 && tostr.length()==0){
-                return ResponseEntity.badRequest().build();
-            }
-
-            if (fromstr.length() == 0){
-                from = -1;
-            }
-            else{
-                from = Long.parseLong(fromstr);
-            }
-
-            if (tostr.length() == 0){
-                to = -1;
+        try{
+            boolean isDownloaded = objectService.download(bucketName, objectName, request, response);
+            if (isDownloaded){
+                return ResponseEntity.ok().build();
             }
             else {
-                to = Long.parseLong(tostr);
-            }
-
-            // convert negative to positive
-            if (from < 0){
-                from = from + contentLength +1;
-            }
-            if (to < 0){
-                to = to + contentLength + 1;
-            }
-
-            if (from > to || to > contentLength){
                 return ResponseEntity.badRequest().build();
             }
-
-//                System.out.println(from);
-//                System.out.println(to);
-
-            // Find from which part to which part is in range
-            File directory = new File("/tmp/buckets/"+bucketName);
-            File[] filesInDir = directory.listFiles();
-            List<File> parts = Arrays.stream(filesInDir)
-                    .filter(f -> f.getName().split(".part")[0].equals(objectName))
-                    .collect(Collectors.toList());
-            Collections.sort(parts);
-            List<InputStream> PartsToBeRead = new ArrayList<>();
-            int firstPart = 0;
-            int lastPart = 0;
-            long startAtFirstPart = 0;
-            long endAtLastPart = 0;
-            long acc = 0;
-            int i = 0;
-            long diffAtEnd = 0;
-            boolean inRange = false;
-            try {
-                for (File part: parts){
-                    acc+=part.length();
-                    i++;
-                    if (!inRange && from <= acc){
-                        inRange = true;
-                        firstPart = i;
-                        startAtFirstPart = part.length() - (acc - from);
-                        InputStream inputStream = new FileInputStream(part);
-                        if (startAtFirstPart != 0){
-                            inputStream.skip(startAtFirstPart);
-                        }
-                        PartsToBeRead.add(inputStream);
-                        if (to <= acc){
-                            lastPart = i;
-                            endAtLastPart = part.length() - (acc - to);
-                            diffAtEnd = acc - to;
-                            break;
-                        }
-                    }
-
-                    else if (to <= acc){
-
-                        lastPart = i;
-                        endAtLastPart = part.length() - (acc - to);
-                        diffAtEnd = acc - to;
-                        InputStream inputStream = new FileInputStream(part);
-                        PartsToBeRead.add(inputStream);
-                        break;
-                    }
-
-                    else if (inRange){
-
-                        InputStream inputStream = new FileInputStream(part);
-                        PartsToBeRead.add(inputStream);
-                    }
-                }
-                SequenceInputStream combinedIS = new SequenceInputStream(
-                        Collections.enumeration(PartsToBeRead));
-
-
-//                    i = 0;
-//                    acc = 0;
-
-                OutputStream outputStream = new BufferedOutputStream(response.getOutputStream());
-                byte[] buffer = new byte[2048];
-                int read;
-//                        for (File part : PartsToBeRead) {
-//                            InputStream inputStream =
-//                        }
-                long toRead = to - from + 1;
-                while ((read = combinedIS.read(buffer)) > 0){
-                    if ((toRead -= read) > 0){
-                        outputStream.write(buffer, 0, read);
-                        outputStream.flush();
-                    }
-                    else{
-                        outputStream.write(buffer, 0, (int)toRead+read);
-                        outputStream.flush();
-                        break;
-                    }
-                }
-                outputStream.close();
-                combinedIS.close();
-//                    IOUtils.copyLarge(outputStream, response.getOutputStream());
-                return ResponseEntity.ok().build();
-
-            }
-            catch (IOException e){
-                return ResponseEntity.notFound().build();
-            }
         }
-        else{
-            return ResponseEntity.notFound().build();
+        catch (IOException e){
+            return ResponseEntity.badRequest().build();
         }
-
-
     }
 
     @PutMapping(value = "/{bucketName}/{objectName}", params = "metadata")
     ResponseEntity updateObjectMetadata(@PathVariable("bucketName") String bucketName,
-                                        @PathVariable("objectName") String objectName,
-                                        @RequestParam(value = "key") String key,
-                                        @RequestBody String value){
+                                      @PathVariable("objectName") String objectName,
+                                      @RequestParam(value = "key") String key,
+                                      @RequestBody String value){
         if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.notFound().build();
         }
-        Bucket bucket = repository.findBucketByName(bucketName);
-        if (bucket == null){
-            return ResponseEntity.notFound().build();
-        }
-        String objectKey = objectName.replace('.', '/');
-        if (!bucket.objects.containsKey(objectKey)){
-            return ResponseEntity.notFound().build();
-        }
-        Content object = bucket.objects.get(objectKey);
-
-        if (key == null || key.isEmpty()){
+        boolean isUpdated = metadataService.update(bucketName, objectName, key, value);
+        if (isUpdated){
             return ResponseEntity.ok().build();
         }
-
-        object.metaData.put(key, value);
-        object.setModified();
-        bucket.objects.put(objectKey, object);
-        bucket.setModified();
-        repository.save(bucket);
-
-        return ResponseEntity.ok().build();
+        else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @DeleteMapping(value = "/{bucketName}/{objectName}", params = "metadata")
     ResponseEntity removeObjectMetadata(@PathVariable("bucketName") String bucketName,
-                                        @PathVariable("objectName") String objectName,
-                                        @RequestParam(value = "key") String key){
+                                      @PathVariable("objectName") String objectName,
+                                      @RequestParam(value = "key") String key){
         if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.notFound().build();
         }
-        Bucket bucket = repository.findBucketByName(bucketName);
-        if (bucket == null){
-            return ResponseEntity.notFound().build();
-        }
-        String objectKey = objectName.replace('.', '/');
-        Content object = bucket.objects.get(objectKey);
-        if (object == null){
-            return ResponseEntity.notFound().build();
-        }
-
-        if (key == null || key.isEmpty()){
+        boolean isRemoved = metadataService.remove(bucketName, objectName, key);
+        if(isRemoved){
             return ResponseEntity.ok().build();
         }
-
-        object.metaData.remove(key);
-        object.setModified();
-        bucket.objects.put(objectKey, object);
-        bucket.setModified();
-        repository.save(bucket);
-
-        return ResponseEntity.ok().build();
+        else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping(value = "/{bucketName}/{objectName}", params = "metadata")
@@ -560,31 +292,13 @@ public class BucketController {
         if (!isBucketNameValid(bucketName) || !isObjectNameValid(objectName)){
             return ResponseEntity.notFound().build();
         }
-        Bucket bucket = repository.findBucketByName(bucketName);
-        if (bucket == null){
+        HashMap<String, String> output = metadataService.getMeta(bucketName, objectName, key);
+        if (output == null){
             return ResponseEntity.notFound().build();
         }
-        String objectKey = objectName.replace('.', '/');
-        Content object = bucket.objects.get(objectKey);
-        if (object == null){
-            return ResponseEntity.notFound().build();
+        else {
+            return ResponseEntity.ok(output);
         }
-
-        HashMap<String, String> json = new HashMap<>();
-
-        if (key == null){
-
-            return ResponseEntity.ok(object.metaData);
-        }
-
-        if (key.isEmpty() || !object.metaData.containsKey(key)){
-            return ResponseEntity.ok(json);
-        }
-
-        json.put(key, object.metaData.get(key));
-        return ResponseEntity.ok(json);
-
     }
-
 
 }

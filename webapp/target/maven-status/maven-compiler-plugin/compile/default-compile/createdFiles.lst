@@ -1,9 +1,12 @@
+com/cs/muic/backend/SimpleObject/services/MetadataService.class
+com/cs/muic/backend/SimpleObject/SimpleObjectApplication.class
 com/cs/muic/backend/SimpleObject/config/MongoDBConfig$1.class
+com/cs/muic/backend/SimpleObject/services/ObjectService.class
 com/cs/muic/backend/SimpleObject/config/MongoDBConfig.class
 com/cs/muic/backend/SimpleObject/Content.class
 com/cs/muic/backend/SimpleObject/BucketNotFoundException.class
-com/cs/muic/backend/SimpleObject/SimpleObjectApplication.class
 com/cs/muic/backend/SimpleObject/BucketController.class
 com/cs/muic/backend/SimpleObject/Bucket.class
+com/cs/muic/backend/SimpleObject/services/BucketService.class
 com/cs/muic/backend/SimpleObject/BucketRepository.class
 com/cs/muic/backend/SimpleObject/config/ContentNegotiationConfiguration.class
