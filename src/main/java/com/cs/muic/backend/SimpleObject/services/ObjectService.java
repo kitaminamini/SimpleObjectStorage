@@ -220,7 +220,7 @@ public class ObjectService {
             long[] fromTo = getRange(fromstr, tostr, contentLength);
             long from = fromTo[0];
             long to = fromTo[1];
-            if (from > to || to > contentLength){
+            if (from > to || to >= contentLength){
                 return false;
             }
 
@@ -314,10 +314,10 @@ public class ObjectService {
 
         // convert negative to positive
         if (from < 0){
-            from = from + contentLength +1;
+            from = from + contentLength;
         }
         if (to < 0){
-            to = to + contentLength + 1;
+            to = to + contentLength;
         }
         range[0] = from;
         range[1] = to;

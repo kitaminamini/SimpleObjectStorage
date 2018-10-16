@@ -119,20 +119,23 @@ def test_full_download():
 
 	headers = {'Range': 'bytes='+str(A)+'-'+str(B)}
 	resp = requests.get(BASE_URL + '/buckettest/objecttest', headers=headers, stream=True)
-	assert resp.status_code == STATUS_OK
+	assert resp.status_code == STATUS_BAD_REQUEST
 
-	with open('./myOutput', 'wb') as handle:
-		for block in resp.iter_content(2048):
-			handle.write(block)
+	# with open('./myOutput', 'wb') as handle:
+	# 	for block in resp.iter_content(2048):
+	# 		handle.write(block)
 
-	downloaded = open('./myOutput', 'rb').read()
-	# print("downloaded len: "+str(len(downloaded)))
-	MD5 = hashlib.md5(downloaded).hexdigest()
-	assert MD5 == realMD5
-	os.remove('./myOutput')
+	# downloaded = open('./myOutput', 'rb').read()
+	# # print("downloaded len: "+str(len(downloaded)))
+	# MD5 = hashlib.md5(downloaded).hexdigest()
+	# assert MD5 == realMD5
+	# os.remove('./myOutput')
 
 
 def test_delete_bucket():
+	resp = requests.post(BASE_URL + '/.a?create')
+	assert resp.status_code == STATUS_BAD_REQUEST
+
 	resp = requests.post(BASE_URL + '/toDelete?create')
 	assert resp.status_code == STATUS_OK
 
